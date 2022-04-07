@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+
+<!-- To view in browser: python3 -m http.server 8080 & -->
+<!-- Then visit http://0.0.0.0:8080/interactive.html in your browser -->
+<head>
+  <title>Games Rating: 2015 - 2019</title>
+  <meta charset="utf-8">
+  <style>
+    
+  </style>
+</head>
+
+<body>
+  <script type="text/javascript" src="../lib/d3.v5.min.js"></script>
+  <script type="text/javascript" src="../lib/d3-dsv.min.js"></script>
+
+  <!-- Example hiding an element -->
+  <!-- <g id="" style"display:none;" /> -->
+  <!-- svg_element.style()-->
+
+  <script>
+    // define the dimensions and margins for the line chart
+    // Use the same Margin Convention from HW1 Q3: https://poloclub.github.io/cse6242-2022spring-online/hw1/8rEHLaYmr9 _margin_convention.pdf to layout your graph
+    var margin = {top: 20, right: 120, bottom: 40, left: 80};
+
+    // define the dimensions and margins for the bar chart
+    var width = 960 - margin.left - margin.right;
+    var height = 500 - margin.top - margin.bottom;
+
+    // Create scales for X & Y values
+    var xScale = d3.scaleLinear().range([0, width]);
+    var yScale = d3.scaleLinear().range([height, 0]);
+
+    // Color Schema
+    var colorArray = [d3.schemeCategory10, d3.schemeAccent];
+    var colorScheme = d3.scaleOrdinal(colorArray[0]);
+
+    // append svg element to the body of the page
+    // set dimensions and position of the svg element
+    let svg = d3.select("body")
+      .append("svg")
+      .attr("id", "line_chart")
+      .attr("width", width + margin.left + margin.right)
+      .attr("height", height + margin.top + margin.bottom).append("g")
+      .attr("id", "container")
+      .attr("transform",
+        "translate(" + margin.left + "," + margin.top + ")");
+
+    // Fetch the data
+	  var pathToCsv = "average-rating.csv";
+    // Time Formatter
+    const formatTime = d3.timeFormat("%Y");
+    // Grouping Function
+    function groupByKey(array, key) {
+      return array.reduce((hash, obj) => {
+          if(obj[key] === undefined) return hash; 
+          return Object.assign(hash, { [obj[key]]:( hash[obj[key]] || [] ).concat(obj)})
+        }, {})
+      }
+
+    d3.dsv(",", pathToCsv, function (d) {
+      return {
+        // format data attributes if required
+        name: d.name,
+        year: formatTime(new Date(+d.year, 0, 1)), // Format to Date for data manipulation, formatTime back to string for ease of viewing
+        average_rating: Math.floor(+d.average_rating),
+        users_rated: +d.users_rated
+      }
+    }).then(function (data) {
+
+      // Create groups in the SVG to work with, following DOM Structure
+      lines = svg.append("g")
+        .attr("id", "lines");
+      xaxis = svg.append("g")
+        .attr("transform","translate(0," + height +")")
+        .attr("id", "x-axis-lines");
+      yaxis = svg.append("g")
+        .attr("id", "y-axis-lines");
+      circles = svg.append("g")
+        .attr("id", "circles");
+      svg.append("text")
+        .attr("id", "line_chart_title")
+        .text("Board games by Rating 2015-2019")
+        .style("text-anchor", "middle")
+        .attr("x", width / 2);
+      svg.append("text")
+        .attr("id", "credit")
+        .text("klee876")
+        .style("text-anchor", "middle")
+        .style("font-size", "12px")
+        .style("font-weight","700")
+        .attr("x", width / 2)
+        .attr("y", 40);
+      legend = svg.append("g")
+        .attr("id","legend");
+      
+
+      // Line chart for the sum of counts of each rating number rounded down with Math.floor()
+      // Create a new dataset that looks like this:
+      /*
+        {2011: [{ rating: , count:  }, { rating: , count:  }, ...]
+         2012: [{ rating: , count:  }, { rating: , count:  }, ...]
+         ...}
+      */
+      // Dataset grouped by the year of occurrence
+      groupedByYear = groupByKey(data, 'year');
+      years = Object.keys(groupedByYear);
+      graphA = {};
+      var ratingBins = [0,1,2,3,4,5,6,7,8,9];
+      // Bin the data based off truncated average rating values
+      for (let i = 0; i < years.length; i++) {
+        // For each year in groupedByYear
+        var key = years[i];
+        graphA[key] = [];
+        // Find out how many average_rating bins there are
+        // Count quantity in each average_rating bin
+        for (let j = 0; j < ratingBins.length; j++) {
+          var count = groupedByYear[key].filter((x) => x.average_rating == ratingBins[j]).length;
+          graphA[key].push({"rating": ratingBins[j], "count": count, "year": years[i]});
+        }
+      }
+
+      // Scale domains set by data
+      maxcount = [];
+      for (let i = 0; i < years.length; i++) {
+        for (let j = 0; j < graphA[years[i]].length; j++) {
+          maxcount.push(graphA[years[i]][j].count);
+        };
+      };
+      xScale.domain([d3.min(ratingBins), d3.max(ratingBins)])
+      yScale.domain([0, d3.max(maxcount)])
+
+      // Create a D3 line generator
+      var line = d3.line()
+        .x(function(d) { return xScale(d.rating); })
+        .y(function(d) { return yScale(d.count); });
+
+      // Create year index filter
+      year_index = ['2015', '2016', '2017', '2018', '2019'];
+      for (let k = 0; k < years.length; k++) {
+        if (year_index.includes(years[k])){
+          lines.append("path")
+            .datum(graphA[years[k]])
+            .attr("class","path")
+            .attr("d", line)
+            .style("fill", "none")
+            .style("stroke-width", 1)
+            .style("stroke", colorScheme(k));
+          circles.append("g")
+            .selectAll("circles")
+            .data(graphA[years[k]])
+            .enter()
+            .append("circle")
+            .style("fill", colorScheme(k))
+            .attr("r", "4")
+            .attr("cx", function(d){ return xScale(d.rating) })
+            .attr("cy", function(d){ return yScale(d.count) })
+            .on("mouseover", hoverOver )
+            .on("mouseout", hoverOff );
+          legend.append("circle")
+            .style("fill", colorScheme(k))
+            .attr("r", "4px")
+            .attr("cx", width - 40 )
+            .attr("cy", k * 20 );
+          legend.append("text")
+            .text(years[k])
+            .style("fill", "black")
+            .style("font-size", "12px")
+            .style("font-weight","400")
+            .attr("x", width - 40 )
+            .attr("y", k * 20 )
+            .attr("transform", "translate(6,4)");
+        }
+      }
+
+      // Add in Axis
+      var xAxis = d3.axisBottom().scale(xScale);
+      var yAxis = d3.axisLeft().scale(yScale);
+      xaxis.call(xAxis)
+        .append("text")
+        .text("Rating")
+        .attr("x", width / 2)
+        .style("fill", "black")
+        .style("font-size","14px")
+        .attr("transform","translate(0,35)");
+      yaxis.call(yAxis)
+        .append("text")
+        .text("Count")
+        .attr("x", 0)
+        .style("fill", "black")
+        .style("font-size","14px")
+        .attr("y", height / 2)
+        .attr("transform","translate(-40, -25) rotate(" + "-90" + ", 0, " + height / 2 + ")")
+
+    // ----------------------- Part C++ -------------------------------------------------------------------------------------
+    /*
+        {2011: [{ count: data.users_rated, name: data.name  }, { count: data.users_rated, name: data.name  }, ...]
+         2012: [{ count: data.users_rated, name: data.name  }, { count: data.users_rated, name: data.name  }, ...]
+         ...}
+        This data must be sorted from highest to lowest by # of users_rated
+    */
+
+    // When we hover over a data point, we want to capture
+    // Year and Rating -> Build a graph using these as filters and pulling users_rated and name from data
+
+    // Create all the SVGB elements as listed in the homework DOM structure
+    d3.select("body")
+      .append("div")
+      .attr("id", "bar_chart_title")
+      .text("Default Bar Chart Title:  Updates Later")  // This text needs to change along with the data
+      .attr("text-anchor", "middle")
+      .attr("x", width / 2 );
+    let svgB = d3.select("body")
+      .append("svg")
+      .attr("id", "bar_chart")
+      .attr("width", width + margin.left + margin.right)
+      .attr("height", height + margin.top + margin.bottom)
+      .append("g")
+      .attr("id", "container_2")
+      .attr("transform",
+        "translate(" + margin.left + "," + margin.top + ")");
+    bars = svgB.append("g")
+      .attr("id", "bars");
+    xaxisB = svgB.append("g")
+      .attr("transform","translate(0," + height +")")
+      .attr("id", "x-axis-bars");
+    yaxisB = svgB.append("g")
+      .attr("id", "y-axis-bars");
+    xaxisBlabel = svgB.append("text")
+      .attr("id", "bar_x_axis_label");
+    yaxisBlabel = svgB.append("text")
+      .attr("id", "bar_y_axis_label");
+    svgB.style("display", "none")
+
+    // Bar padding pixels
+    var padding = 4;
+
+    function hoverOver(event) {
+      d3.select(this).attr("r", "10")
+      if (d3.select(this).data()[0].count != 0) {
+        svgB.style("display", "inline")  // Turn display on
+
+        // Filters generated from data point that is hovered over
+        year_filter = d3.select(this).data()[0].year;
+        rating_filter = d3.select(this).data()[0].rating;
+
+        // Generate data structure to contain the data as needed
+        for (let i = 0; i < years.length; i++) {
+          if (years[i] == year_filter) {
+            var sorter = [];
+            groupedByYear[years[i]].map((x) => sorter.push([x.users_rated, x.name, x.average_rating]));
+            sorter.sort((a,b) => d3.descending(a[0],b[0]));
+          }
+        };
+        // Sorter contains all the filtered data by year and rating -> sorted descending
+        sorter = sorter.filter((x) => x[2] == rating_filter)
+        var items = 0;
+        if (sorter.length > 5){
+          items = 5;  // Number of bars to display on charts
+        }
+        else {
+          items = sorter.length;
+        }
+        var graphB = [];
+        var dom = [];
+        var ran = [];
+        // Push top 5 items into graphB
+        for (let i = 0; i < items; i++) {
+          graphB.push({"count": sorter[i][0], "name": sorter[i][1]})
+          if (sorter[i][1].length > 10) {
+            dom.push(sorter[i][1].substring(0, 10))
+          }
+          else {
+            dom.push(sorter[i][1])
+          }
+          ran.push(height/5*i+height/10)
+        }
+
+        // Generate scales
+        // Create scales for X & Y values
+        var xScaleB = d3.scaleLinear().range([0, width]);
+        var yScaleB = d3.scaleOrdinal().range(ran);
+        xScaleB.domain([0, graphB[0].count])
+        yScaleB.domain(dom)
+        console.log(graphB)
+
+        // Update title on the bar graph div element
+        d3.select("#bar_chart_title")
+          .text("Top 5 most rated games of " + year_filter + " with rating " + rating_filter)
+          .attr("transform", "translate(" + width/2 + ",0)");
+        
+        // Graph the data after it's hovered and generated
+        bars.selectAll("rect")
+          .data(graphB)
+          .enter()
+          .append("rect")
+          .attr("height", height / 5 - padding * 2 )
+          .attr("width", function(d){ return xScaleB(d.count) })
+          .attr("fill", "RGB(255,179,0)")
+          .attr("y", function(d,i){ return i * height / 5 + padding });
+
+        // Add in Axis
+        var xAxisB = d3.axisBottom().scale(xScaleB);
+        var yAxisB = d3.axisLeft().scale(yScaleB).ticks(5);
+        xaxisB.call(xAxisB)
+        yaxisB.call(yAxisB)
+
+        d3.select("#bar_x_axis_label")
+          .text("Number of Users")
+          .attr("x", width / 2)
+          .attr("y", height)
+          .style("fill", "black")
+          .style("font-size","14px")
+          .attr("transform","translate(-40,35)");
+        d3.select("#bar_y_axis_label")
+          .text("Games")
+          .attr("x", 0)
+          .style("fill", "black")
+          .style("font-size","14px")
+          .attr("y", height / 2)
+          .attr("transform","translate(-70, 20) rotate(" + "-90" + ", 0, " + height / 2 + ")");
+      }
+    }
+
+    function hoverOff(event) {
+      svgB.style("display", "none");
+      d3.select(this).attr("r", "4")
+      
+      // Graph resets
+      bars.selectAll("rect").remove();
+    }
+
+    console.log(data); // you should see the data in your browser's developer tools console
+    console.log(groupedByYear);
+    }).catch(function (error) {
+      console.log(error);
+    });
+
+
+  </script>
+
+</body>

@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+
+<head>
+  <title>Line Charts</title>
+  <meta charset="utf-8">
+  <style>
+    /* Update CSS Styles here */
+    /* Default line CSS style */
+    .path {
+      fill: none;
+    }
+    .symbols {
+      r: 10px;
+    }
+  </style>
+  <script type="text/javascript" src="../lib/d3.v5.min.js"></script>
+</head>
+
+<body>
+  <div id='signature'>klee876</div>
+
+  <script>
+    // Define variables below
+    // Margins outside the SVG main graph
+    var margin = {top: 20, right: 120, bottom: 40, left: 65};
+    // SVG dimensions width and height
+    var width = 960 - margin.left - margin.right;
+    var height = 500 - margin.top - margin.bottom;
+    // Color Schema
+    var colorArray = [d3.schemeCategory10, d3.schemeAccent];
+    var colorScheme = d3.scaleOrdinal(colorArray[0]);
+    // Rotation of y-axis label
+    var y_axis_transform_angle = -90;
+
+    // Create scales for X & Y values
+    var xScale = d3.scaleTime().range([0, width]);
+    var yScale = d3.scaleLinear().range([height, 0]);
+
+    // Create formatter for time to fit specifications
+    const formatTime = d3.timeFormat("%b %y");
+
+    // Import data from CSV
+    var pathToCsv = "boardgame_ratings.csv";
+    d3.csv(pathToCsv, function (d) {
+      return {
+        // Return and format the values from the csv into variables labeled on the left
+        date: new Date(d.date.replace(/-/g, '\/')),
+        "Catan=count": +d["Catan=count"],
+        "Catan=rank": +d["Catan=rank"],
+        "Dominion=count": +d["Dominion=count"],
+        "Dominion=rank": +d["Dominion=rank"],
+        "Codenames=count": +d["Codenames=count"],
+        "Codenames=rank": +d["Codenames=rank"],
+        "Terraforming Mars=count": +d["Terraforming Mars=count"],
+        "Terraforming Mars=rank": +d["Terraforming Mars=rank"],
+        "Gloomhaven=count": +d["Gloomhaven=count"],
+        "Gloomhaven=rank": +d["Gloomhaven=rank"],
+        "Magic: The Gathering=count": +d["Magic: The Gathering=count"],
+        "Magic: The Gathering=rank": +d["Magic: The Gathering=rank"],
+        "Dixit=count": +d["Dixit=count"],
+        "Dixit=rank": +d["Dixit=rank"],
+        "Monopoly=count": +d["Monopoly=count"],
+        "Monopoly=rank": +d["Monopoly=rank"]
+      }
+    }).then(function (data) {
+      // Transform data to more usable information
+      // Nest data into following {"catan" : {"count": , "rank":}, "dominion" : {"count": , "rank":}}
+      dict = {};
+      maxcount = [];
+      lasty = [];
+      indexes = Object.keys(data[0])  // Returns all the column names
+      games = Array.from(new Set(indexes.filter(title => title != "date").map(game => game.split("=")[0])));  // Games contains just the game names
+      for (let i = 0; i < games.length; i++) {
+        dict[games[i]] = [];  // Empty arrays on every game key
+        for (let j = 0; j < data.length; j++) {
+          dict[games[i]].push({"date" : data[j].date, "count" : data[j][games[i]+"=count"], "rank" : data[j][games[i]+"=rank"]})  // Dictionary for each datapoint
+        }
+      }
+      for (let i = 0; i < games.length; i++) {
+        for (let j = 0; j < data.length; j++) {
+          maxcount.push(dict[games[i]][j].count);
+        }
+        lasty.push(dict[games[i]][data.length-1].count);
+      };
+      
+      // HW2 Q3 PART A -------------------------------------------------------------------------------------------------------------------------------------------
+
+      // Create base SVG for CHART A
+      svgA = d3.select("body")
+        .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.bottom + margin.top)
+        .attr("id", "svg-a")
+
+      // Generate Title for SVG A
+      svgA.append("text")
+        .attr("id","title-a")
+        .text("Number of Ratings 2016-2020")
+        .attr("x", width/2-20)
+        .attr("y", 20)
+        .style("font-weight", 700);
+      svgAplot = svgA.append("g")
+        .attr("id",'plot-a')
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+      // Calculate domain for the axis scaling based on data
+      xScale.domain([d3.min(data, function(d) { return d.date }) , d3.max(data, function(d) { return d.date })])
+      yScale.domain([0, d3.max(maxcount)])
+
+      // Create a D3 line generator
+      var line = d3.line()
+        .x(function(d) { return xScale(d.date); })
+        .y(function(d) { return yScale(d.count); });
+
+      linesA = svgAplot.append("g")
+        .attr("id", "lines-a");
+
+      for (let k = 0; k < games.length; k++) {
+        linesA.append("path")
+          .datum(dict[games[k]])
+          .attr("class","path")
+          .attr("d", line)
+          .style("stroke-width", 1)
+          .style("stroke", colorScheme(k));
+        linesA.append("text")
+          .datum(dict)
+          .text(function(d){ return Object.keys(d)[k]; })
+          .style("font-size", "12px")
+          .style("fill", colorScheme(k))
+          .attr("x", width + 8)
+          .attr("y", yScale(lasty[k]-800));
+      }
+
+      // Generate Axis in the SVG
+      var xAxis = d3.axisBottom().scale(xScale).tickFormat(formatTime);
+      var yAxis = d3.axisLeft().scale(yScale);
+
+      svgAplot.append("g")
+        .attr("transform","translate(0," + height +")")
+        .attr("id", "x-axis-a")
+        .call(xAxis)
+        .append("text")
+        .text("Month")
+        .attr("x", width / 2)
+        .style("fill", "black")
+        .style("font-size","14px")
+        .attr("transform","translate(0,40)");
+      svgAplot.append("g")
+        .attr("id", "y-axis-a")
+        .call(yAxis)
+        .append("text")
+        .text("Num of Ratings")
+        .attr("x", 0)
+        .style("fill", "black")
+        .style("font-size","14px")
+        .attr("y", height / 2)
+        .attr("transform","translate(-50, -60) rotate(" + y_axis_transform_angle + ", 0, " + height / 2 + ")")
+
+      // HW2 Q3 PART B -------------------------------------------------------------------------------------------------------------------------------------------
+
+      // Create base SVG for CHART B
+      svgB = d3.select("body")
+        .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.bottom + margin.top)
+        .attr("id", "svg-b")
+
+      // Generate Title for SVG B
+      svgB.append("text")
+        .attr("id","title-b")
+        .text("Number of Ratings 2016-2020 with Ranking")
+        .style("text-anchor","middle")
+        .attr("x", width/2+60)
+        .attr("y", 20)
+        .style("font-weight", 700);
+      svgBplot = svgB.append("g")
+        .attr("id",'plot-b')
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+      // Generate lines group to add paths to
+      linesB = svgBplot.append("g")
+        .attr("id", "lines-b");
+
+      for (let k = 0; k < games.length; k++) {
+        linesB.append("path")
+          .datum(dict[games[k]])
+          .attr("class","path")
+          .attr("d", line)
+          .style("stroke-width", 1)
+          .style("stroke", colorScheme(k));
+        linesB.append("text")
+          .datum(dict)
+          .text(function(d){ return Object.keys(d)[k]; })
+          .style("font-size", "12px")
+          .style("fill", colorScheme(k))
+          .attr("x", width + 8)
+          .attr("y", yScale(lasty[k]-800));
+      }
+
+      // Generate Axis in the SVG
+      var xAxis = d3.axisBottom().scale(xScale).tickFormat(formatTime);
+      var yAxis = d3.axisLeft().scale(yScale);
+      svgBplot.append("g")
+        .attr("transform","translate(0," + height +")")
+        .attr("id", "x-axis-b")
+        .call(xAxis)
+        .append("text")
+        .text("Month")
+        .attr("x", width / 2)
+        .style("fill", "black")
+        .style("font-size","14px")
+        .attr("transform","translate(0,40)");
+      svgBplot.append("g")
+        .attr("id", "y-axis-b")
+        .call(yAxis)
+        .append("text")
+        .text("Num of Ratings")
+        .attr("x", 0)
+        .style("fill", "black")
+        .style("font-size","14px")
+        .attr("y", height / 2)
+        .attr("transform","translate(-50, -60) rotate(" + y_axis_transform_angle + ", 0, " + height / 2 + ")")
+
+      // Generate symbol markers for [‘Catan’, ‘Codenames’, ‘Terraforming Mars’, ‘Gloomhaven’]
+      symbol_index = ["Catan", "Codenames", "Terraforming Mars", "Gloomhaven"];
+      symbolsB = svgBplot.append("g")
+        .attr("id","symbols-b")
+      for (let k = 0; k < games.length; k++) {
+        if (symbol_index.includes(games[k])) {
+          symbolsB.append("g")
+            .selectAll("circle")
+            .data(dict[games[k]].filter(function(d,i){ return i%3 == 2 && i != 0 }))
+            .enter()
+            .append("circle")
+            .attr("class","symbols")
+            .style("fill", colorScheme(k))
+            .attr("cy", function(d){ return yScale(d.count) })
+            .attr("cx", function(d){ return xScale(d.date) });
+          symbolsB.append("g")
+            .selectAll("text")
+            .data(dict[games[k]].filter(function(d,i){ return i%3 == 2 && i != 0 }))
+            .enter()
+            .append("text")
+            .text(function(d){ return d.rank })
+            .style("text-anchor", "middle")
+            .style("fill", "white")
+            .style("font-size", "8px")
+            .attr("x", function(d){ return xScale(d.date) })
+            .attr("y", function(d){ return yScale(d.count) })
+            .attr("transform", "translate(0,2)");
+        };
+        // Add legend for what the symbols mean
+        legendB = svgB.append("g")
+          .attr("id","legend-b");
+        legendB.append("circle")
+          .style("fill", "black")
+          .attr("r", "14px")
+          .attr("cx", width + margin.left + margin.right - 60)
+          .attr("cy", height - 30);
+        legendB.append("text")
+          .text("rank")
+          .style("fill", "white")
+          .style("text-anchor", "middle")
+          .style("font-size", "10px")
+          .attr("x", width + margin.left + margin.right - 60)
+          .attr("y", height - 28);
+        legendB.append("text")
+          .text("BoardGameGeek Rank")
+          .style("fill", "black")
+          .style("text-anchor", "middle")
+          .style("font-size", "12px")
+          .attr("x", width + margin.left + margin.right - 60)
+          .attr("y", height);
+      };
+      
+    // HW2 Q3 PART C1 -------------------------------------------------------------------------------------------------------------------------------------------
+
+      // Create base SVG for CHART C1
+      svgC1 = d3.select("body")
+        .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.bottom + margin.top)
+        .attr("id", "svg-c-1")
+
+      // Generate Title for SVG C1
+      svgC1.append("text")
+        .attr("id","title-c-1")
+        .text("Number of Ratings 2016-2020 (Square Root Scale)")
+        .style("text-anchor","middle")
+        .attr("x", width/2+60)
+        .attr("y", 20)
+        .style("font-weight", 700);
+      svgC1plot = svgC1.append("g")
+        .attr("id",'plot-c-1')
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+      // Modify to SQRT Scale
+      yScale = d3.scaleSqrt().range([height,0]).domain([0, d3.max(maxcount)]);
+      yAxis = d3.axisLeft().scale(yScale);
+
+      // Generate lines group to add paths to
+      linesC1 = svgC1plot.append("g")
+        .attr("id", "lines-c-1");
+
+      for (let k = 0; k < games.length; k++) {
+        linesC1.append("path")
+          .datum(dict[games[k]])
+          .attr("class","path")
+          .attr("d", line)
+          .style("stroke-width", 1)
+          .style("stroke", colorScheme(k));
+        linesC1.append("text")
+          .datum(dict)
+          .text(function(d){ return Object.keys(d)[k]; })
+          .style("font-size", "12px")
+          .style("fill", colorScheme(k))
+          .attr("x", width + 8)
+          .attr("y", yScale(lasty[k]-800));
+      }
+
+      // Generate Axis in the SVG
+      var xAxis = d3.axisBottom().scale(xScale).tickFormat(formatTime);
+      var yAxis = d3.axisLeft().scale(yScale);
+      svgC1plot.append("g")
+        .attr("transform","translate(0," + height +")")
+        .attr("id", "x-axis-c-1")
+        .call(xAxis)
+        .append("text")
+        .text("Month")
+        .attr("x", width / 2)
+        .style("fill", "black")
+        .style("font-size","14px")
+        .attr("transform","translate(0,40)");
+      svgC1plot.append("g")
+        .attr("id", "y-axis-c-1")
+        .call(yAxis)
+        .append("text")
+        .text("Num of Ratings")
+        .attr("x", 0)
+        .style("fill", "black")
+        .style("font-size","14px")
+        .attr("y", height / 2)
+        .attr("transform","translate(-50, -60) rotate(" + y_axis_transform_angle + ", 0, " + height / 2 + ")")
+
+      symbolsC1 = svgC1plot.append("g")
+        .attr("id","symbols-c-1")
+      for (let k = 0; k < games.length; k++) {
+        if (symbol_index.includes(games[k])) {
+          symbolsC1.append("g")
+            .selectAll("circle")
+            .data(dict[games[k]].filter(function(d,i){ return i%3 == 2 && i != 0 }))
+            .enter()
+            .append("circle")
+            .attr("class","symbols")
+            .style("fill", colorScheme(k))
+            .attr("cy", function(d){ return yScale(d.count) })
+            .attr("cx", function(d){ return xScale(d.date) });
+          symbolsC1.append("g")
+            .selectAll("text")
+            .data(dict[games[k]].filter(function(d,i){ return i%3 == 2 && i != 0 }))
+            .enter()
+            .append("text")
+            .text(function(d){ return d.rank })
+            .style("text-anchor", "middle")
+            .style("fill", "white")
+            .style("font-size", "8px")
+            .attr("x", function(d){ return xScale(d.date) })
+            .attr("y", function(d){ return yScale(d.count) })
+            .attr("transform", "translate(0,2)");
+        };
+        // Add legend for what the symbols mean
+        legendC1 = svgC1.append("g")
+          .attr("id","legend-c-1");
+        legendC1.append("circle")
+          .style("fill", "black")
+          .attr("r", "14px")
+          .attr("cx", width + margin.left + margin.right - 60)
+          .attr("cy", height - 30);
+        legendC1.append("text")
+          .text("rank")
+          .style("fill", "white")
+          .style("text-anchor", "middle")
+          .style("font-size", "10px")
+          .attr("x", width + margin.left + margin.right - 60)
+          .attr("y", height - 28);
+        legendC1.append("text")
+          .text("BoardGameGeek Rank")
+          .style("fill", "black")
+          .style("text-anchor", "middle")
+          .style("font-size", "12px")
+          .attr("x", width + margin.left + margin.right - 60)
+          .attr("y", height);
+      };
+
+      // HW2 Q3 PART C2 -------------------------------------------------------------------------------------------------------------------------------------------
+
+      // Create base SVG for CHART C2
+      svgC2 = d3.select("body")
+        .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.bottom + margin.top)
+        .attr("id", "svg-c-2")
+
+      // Generate Title for SVG C2
+      svgC2.append("text")
+        .attr("id","title-c-2")
+        .text("Number of Ratings 2016-2020 (Log Scale)")
+        .style("text-anchor","middle")
+        .attr("x", width/2+60)
+        .attr("y", 20)
+        .style("font-weight", 700);
+      svgC2plot = svgC2.append("g")
+        .attr("id",'plot-c-2')
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+      // Modify to SQRT Scale
+      yScale = d3.scaleLog().base(10).range([height,0]).domain([1, d3.max(maxcount)]);
+      yAxis = d3.axisLeft().scale(yScale);
+
+      // Generate lines group to add paths to
+      linesC2 = svgC2plot.append("g")
+        .attr("id", "lines-c-2");
+
+      for (let k = 0; k < games.length; k++) {
+        linesC2.append("path")
+          .datum(dict[games[k]])
+          .attr("class","path")
+          .attr("d", line)
+          .style("stroke-width", 1)
+          .style("stroke", colorScheme(k));
+        linesC2.append("text")
+          .datum(dict)
+          .text(function(d){ return Object.keys(d)[k]; })
+          .style("font-size", "12px")
+          .style("fill", colorScheme(k))
+          .attr("x", width + 8)
+          .attr("y", yScale(lasty[k]-800));
+      }
+
+      // Generate Axis in the SVG
+      var xAxis = d3.axisBottom().scale(xScale).tickFormat(formatTime);
+      var yAxis = d3.axisLeft().scale(yScale);
+      svgC2plot.append("g")
+        .attr("transform","translate(0," + height +")")
+        .attr("id", "x-axis-c-2")
+        .call(xAxis)
+        .append("text")
+        .text("Month")
+        .attr("x", width / 2)
+        .style("fill", "black")
+        .style("font-size","14px")
+        .attr("transform","translate(0,40)");
+      svgC2plot.append("g")
+        .attr("id", "y-axis-c-2")
+        .call(yAxis)
+        .append("text")
+        .text("Num of Ratings")
+        .attr("x", 0)
+        .style("fill", "black")
+        .style("font-size","14px")
+        .attr("y", height / 2)
+        .attr("transform","translate(-50, -60) rotate(" + y_axis_transform_angle + ", 0, " + height / 2 + ")")
+
+      symbolsC2 = svgC2plot.append("g")
+        .attr("id","symbols-c-2")
+      for (let k = 0; k < games.length; k++) {
+        if (symbol_index.includes(games[k])) {
+          symbolsC2.append("g")
+            .selectAll("circle")
+            .data(dict[games[k]].filter(function(d,i){ return i%3 == 2 && i != 0 }))
+            .enter()
+            .append("circle")
+            .attr("class","symbols")
+            .style("fill", colorScheme(k))
+            .attr("cy", function(d){ return yScale(d.count) })
+            .attr("cx", function(d){ return xScale(d.date) });
+          symbolsC2.append("g")
+            .selectAll("text")
+            .data(dict[games[k]].filter(function(d,i){ return i%3 == 2 && i != 0 }))
+            .enter()
+            .append("text")
+            .text(function(d){ return d.rank })
+            .style("text-anchor", "middle")
+            .style("fill", "white")
+            .style("font-size", "8px")
+            .attr("x", function(d){ return xScale(d.date) })
+            .attr("y", function(d){ return yScale(d.count) })
+            .attr("transform", "translate(0,2)");
+        };
+        // Add legend for what the symbols mean
+        legendC2 = svgC2.append("g")
+          .attr("id","legend-c-2");
+        legendC2.append("circle")
+          .style("fill", "black")
+          .attr("r", "14px")
+          .attr("cx", width + margin.left + margin.right - 60)
+          .attr("cy", height - 30);
+        legendC2.append("text")
+          .text("rank")
+          .style("fill", "white")
+          .style("text-anchor", "middle")
+          .style("font-size", "10px")
+          .attr("x", width + margin.left + margin.right - 60)
+          .attr("y", height - 28);
+        legendC2.append("text")
+          .text("BoardGameGeek Rank")
+          .style("fill", "black")
+          .style("text-anchor", "middle")
+          .style("font-size", "12px")
+          .attr("x", width + margin.left + margin.right - 60)
+          .attr("y", height);
+      };
+
+      console.log(dict);
+    }).catch(function (error) {
+      console.log(error);
+    });
+
+    
+
+  </script>
+</body>

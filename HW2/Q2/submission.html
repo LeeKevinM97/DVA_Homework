@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+
+path.link {
+  fill: none;
+  stroke: #666;
+  stroke-width: 1.5px;
+}
+
+circle {
+  fill: #ccc;
+  stroke: #fff;
+  stroke: black;
+  stroke-width: 1.5px;
+}
+
+text {
+  fill: #000;
+  font: 10px sans-serif;
+  pointer-events: none;
+}
+
+.solid{
+   stroke:solid;
+}
+
+.dashed{
+   stroke-dasharray: 5,5; 
+}
+
+</style>
+<meta charset="utf-8">
+<title></title></head>
+
+<body>
+<script type="text/javascript" src="../lib/d3.v5.min.js"></script>
+<script>
+
+d3.dsv(",", "board_games.csv", function(d) {
+  return {
+    source: d.source,
+    target: d.target,
+    value: +d.value
+  }
+}).then(function(data) {
+
+  var links = data;
+
+  var nodes = {};
+
+  // compute the distinct nodes from the links.
+  links.forEach(function(link) {
+      link.source = nodes[link.source] || (nodes[link.source] = {name: link.source});
+      link.target = nodes[link.target] || (nodes[link.target] = {name: link.target});
+  });
+
+  var width = 1200,
+      height = 700;
+
+  
+  var force = d3.forceSimulation()
+      .nodes(d3.values(nodes))
+      .force("link", d3.forceLink(links).distance(100))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force("x", d3.forceX())
+      .force("y", d3.forceY())
+      .force("charge", d3.forceManyBody().strength(-250))
+      .alphaTarget(1)
+      .on("tick", tick);
+
+  var svg = d3.select("body").append("svg")
+      .attr("width", width)
+      .attr("height", height);
+
+  // add the links
+  var path = svg.append("g")
+      .selectAll("path")
+      .data(links)
+      .enter()
+      .append("path")
+      .attr("class", function(d) { return "link " + d.type; });
+
+  // define the nodes
+  var node = svg.selectAll(".node")
+      .data(force.nodes())
+      .enter().append("g")
+      .attr("class", "node")
+      .on("dblclick", unpinned)
+      .call(d3.drag()
+          .on("start", dragstarted)
+          .on("drag", dragged)
+          .on("end", dragended));
+
+  // add the nodes
+  node.append("circle")
+      .attr("id", function(d){
+         return (d.name.replace(/\s+/g,'').toLowerCase());
+      })
+      .attr("r", 5);
+
+  // Q2.A - add the node labels to top right of each node in bold
+  // Node is already a "g" element, so append a text element to it with relative position top right means x=0 y=0
+  // The .text needs to contain the node name which is in nodes dictionary under "name"
+  node.append("text")
+      .attr("x", 10)
+      .attr("y", 0)
+      .style("font-weight", 900)
+      .text(function(d) { return d.name; });
+  // Q2.A completed
+
+  // add the curvy lines
+  function tick() {
+      path.attr("d", function(d) {
+          var dx = d.target.x - d.source.x,
+              dy = d.target.y - d.source.y,
+              dr = Math.sqrt(dx * dx + dy * dy);
+          return "M" +
+              d.source.x + "," +
+              d.source.y + "A" +
+              dr + "," + dr + " 0 0,1 " +
+              d.target.x + "," +
+              d.target.y;
+      });
+
+      node.attr("transform", function(d) {
+          return "translate(" + d.x + "," + d.y + ")"; 
+      });
+  };
+
+  // Q2.B - modify the curvy lines to give them different styles
+  // If value of the edge is 0, gray thick solid
+  // If value of the edge is 1, green thin dashed
+  // 
+  path.style("stroke-width", function(d) {
+      if (d.value == 0) {
+          return 3;
+      }
+      else if (d.value == 1) {
+          return 1;
+      }
+  });
+  path.style("stroke", function(d) {
+      if (d.value == 0) {
+          return "gray";
+      }
+      else if (d.value == 1) {
+          return "green";
+      }
+  });
+  path.style("fill", "none");
+  path.attr("class", function(d) {
+      if (d.value == 0) {
+          return "solid";
+      }
+      else if (d.value == 1) {
+          return "dashed";
+      }
+  });
+  // Q2.B completed
+
+  // Q2.C - modify nodes circle attributes
+  // Radius needs to scale off the degree of node, need to calculate node degrees, can use any scale type to determine radius
+  // Color fill needs to change based on node degree as well.  Higher degree is darker
+  node.selectAll("circle")
+        .attr("r", function(d) {
+            d.weight = path.filter(function(l) {
+                return l.source.index == d.index || l.target.index == d.index
+            }).size();
+            var minRadius = 5;
+            return minRadius + d.weight * 4;
+        });
+  // Extra step to translate the text with the scaled radius to stay top-right of node
+  node.selectAll("text")
+        .attr("transform", function(d) {
+            var xtrans = d.weight * 3;
+            var ytrans = d.weight * -4;
+            return "translate(" + xtrans + ", " + ytrans + ")";
+        });
+  // End extra step for text modification
+  node.selectAll("circle")
+        .style("fill")
+  node.selectAll("circle")
+        .style("fill", function(d) {
+            var red = 240 - d.weight * 20;
+            var blue = 250 - d.weight * 12;
+            var green = 185 - d.weight * 2;
+            return "RGB(" +  red + "," + blue + "," + green + ")"
+        });
+  // Q2.C completed
+
+  function dragstarted(d) {
+      if (!d3.event.active) force.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+  };
+
+  function dragged(d) {
+        d.fx = d3.event.x;
+        d.fy = d3.event.y;
+  };
+
+  function dragended(d) {
+      if (!d3.event.active) force.alphaTarget(0);
+      d3.select(this).select("circle").style("fill", "RGB(255,0,0)");  // In node selection, select circle and fill with red
+      d.fixed = true;  // Fix the node after drag ends
+      if (d.fixed == true) {
+        d.fx = d.x;
+        d.fy = d.y;
+      }
+      else {
+        d.fx = null;
+        d.fy = null;
+      }
+  };
+
+// New function for unpinning nodes after double clicking
+  function unpinned(d) {
+    d.fixed = false;  // Revert fixed
+    d.fx = null;  // Reset node to unfixed coordinates
+    d.fy = null;  // Reset node to unfixed coordinates
+    d3.select(this).classed("fixed", false);
+    d3.select(this).select("circle").style("fill", function(d) {
+            var red = 240 - d.weight * 20;
+            var blue = 250 - d.weight * 12;
+            var green = 185 - d.weight * 2;
+            return "RGB(" +  red + "," + blue + "," + green + ")"
+        });  // Revert color
+  }
+
+// Sign GTID name
+svg.append("text")
+    .text("klee876")
+    .attr("id","credit")
+    .attr("x", width - 40)
+    .attr("y", 20)
+  
+}).catch(function(error) {
+  console.log(error);
+});
+
+</script>
+</body>
+</html>
